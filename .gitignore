@@ -8,13 +8,5 @@ yarn.lock
 
 /dist
 
-utils
-api
-services
-models
-subscribers
-loaders
-.idea
-
 
 
