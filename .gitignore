@@ -8,12 +8,12 @@ yarn.lock
 
 /dist
 
-/utils
-/api
-/services
-/models
-/subscribers
-/loaders
+utils
+api
+services
+models
+subscribers
+loaders
 .idea
 
 
