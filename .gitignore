@@ -1,12 +1,18 @@
-/lib
-node_modules
-.DS_store
-.env*
-/*.js
-!index.js
-yarn.lock
-
 /dist
+.env
+.DS_Store
+/uploads
+/node_modules
+yarn-error.log
 
+.idea
 
+coverage
 
+!src/**
+
+./tsconfig.tsbuildinfo
+package-lock.json
+yarn.lock
+medusa-db.sql
+build
