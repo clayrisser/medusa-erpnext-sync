@@ -17,17 +17,31 @@ export default class UpdateErpnextService extends BaseService {
     super()
 
     this.productService = productService
+
     this.productVariantService = productVariantService
+
     this.regionService = regionService
+
     this.eventBus = eventBusService
+
     this.options = options
-    this.protocol = this.options.strapi_protocol
+
+    // this.protocol = this.options_.strapi_protocol
+
+    // this.strapi_URL_STRING = `${this.protocol ?? "https"}://${
+    //   this.options_.strapi_url ?? "localhost"
+    // }:${this.options_.strapi_port ?? 1337}`
+
+    this.protocol = this.options.erpnext_protocol
+    this.erpnext_URL_STRING = `${this.protocol ?? "https"}://${
+      this.options.erpnext_url ?? "localhost"
+    }:${this.options.erpnext_port ?? 8000}`
 
     this.strapiAuthToken = ""
 
     this.checkErpnextHealth().then((res) => {
       if (res) {
-        this.loginToErpnext()
+        this.loginToStrapi()
       }
     })
 
@@ -35,7 +49,7 @@ export default class UpdateErpnextService extends BaseService {
   }
 
   async addIgnore_(id, side) {
-    const key = `${id}_ignore_${side}`
+    const key = `${id}ignore${side}`
     return await this.redis_.set(
       key,
       1,
@@ -45,7 +59,7 @@ export default class UpdateErpnextService extends BaseService {
   }
 
   async shouldIgnore_(id, side) {
-    const key = `${id}_ignore_${side}`
+    const key = `${id}ignore${side}`
     return await this.redis_.get(key)
   }
 
@@ -54,7 +68,7 @@ export default class UpdateErpnextService extends BaseService {
     try {
       const allVariants = variants.map(async (variant) => {
         // update product variant in strapi
-        const result = await this.updateProductVariantInErpnext(variant)
+        const result = await this.updateProductVariantInStrapi(variant)
         return result.productVariant
       })
       return Promise.all(allVariants)
@@ -68,7 +82,7 @@ export default class UpdateErpnextService extends BaseService {
       product.images
         .filter((image) => image.url !== product.thumbnail)
         .map(async (image, i) => {
-          const result = await this.createEntryInErpnext("images", product.id, {
+          const result = await this.createEntryInStrapi("images", product.id, {
             image_id: image.id,
             url: image.url,
             metadata: image.metadata || {},
@@ -90,19 +104,20 @@ export default class UpdateErpnextService extends BaseService {
   }
 
   async createProductInErpnext(productId) {
-    const hasType = await this.getType("products")
-      .then(() => true)
-      .catch((err) => {
-        // console.log(err)
-        return false
-      })
-    if (!hasType) {
-      return Promise.resolve()
-    }
+    console.log(123)
+    // const hasType = await this.getType("products")
+    //   .then(() => true)
+    //   .catch((err) => {
+    //     // console.log(err)
+    //     return false
+    //   })
+    // if (!hasType) {
+    //   return Promise.resolve()
+    // }
 
     // eslint-disable-next-line no-useless-catch
     try {
-      const product = await this.productService_.retrieve(productId, {
+      const product = await this.productService.retrieve(productId.id, {
         relations: [
           "options",
           "variants",
@@ -134,17 +149,26 @@ export default class UpdateErpnextService extends BaseService {
         ],
       })
 
-      console.log("product created", product)
+      console.log("created product", product)
 
-      // if (product) {
-      //   return await this.createEntryInStrapi("products", productId, product)
-      // }
+      axios
+        .post(
+          "http://site1.localhost:8000/api/method/erpnext.login.create_product",
+          product
+        )
+        .then((res) => {
+          console.log("res", res)
+        })
+
+      //   if (product) {
+      //     return await this.createEntryInStrapi("products", productId, product)
+      //   }
     } catch (error) {
       throw error
     }
   }
 
-  async createProductVariantErpnext(variantId) {
+  async createProductVariantInStrapi(variantId) {
     const hasType = await this.getType("product-variants")
       .then(() => true)
       .catch(() => false)
@@ -155,13 +179,13 @@ export default class UpdateErpnextService extends BaseService {
 
     // eslint-disable-next-line no-useless-catch
     try {
-      const variant = await this.productVariantService_.retrieve(variantId, {
+      const variant = await this.productVariantService_(variantId, {
         relations: ["prices", "options", "product"],
       })
 
       // console.log(variant)
       if (variant) {
-        return await this.createEntryInErpnext(
+        return await this.createEntryInStrapi(
           "product-variants",
           variantId,
           variant
@@ -172,7 +196,7 @@ export default class UpdateErpnextService extends BaseService {
     }
   }
 
-  async createRegionInErpnext(regionId) {
+  async createRegionInStrapi(regionId) {
     const hasType = await this.getType("regions")
       .then(() => true)
       .catch(() => false)
@@ -193,15 +217,15 @@ export default class UpdateErpnextService extends BaseService {
         select: ["id", "name", "tax_rate", "tax_code", "metadata"],
       })
 
-      console.log(region, "region created")
+      // console.log(region)
 
-      return await this.createEntryInErpnext("regions", regionId, region)
+      return await this.createEntryInStrapi("regions", regionId, region)
     } catch (error) {
       throw error
     }
   }
 
-  async updateRegionInErpnext(data) {
+  async updateRegionInStrapi(data) {
     const hasType = await this.getType("regions")
       .then((res) => {
         // console.log(res.data)
@@ -245,11 +269,11 @@ export default class UpdateErpnextService extends BaseService {
         ],
         select: ["id", "name", "tax_rate", "tax_code", "metadata"],
       })
-      // console.log(region)
+      console.log(region, "Region data")
 
       if (region) {
         // Update entry in Strapi
-        const response = await this.updateEntryInErpnext(
+        const response = await this.updateEntryInStrapi(
           "regions",
           region.id,
           region
@@ -263,7 +287,7 @@ export default class UpdateErpnextService extends BaseService {
     }
   }
 
-  async updateProductInErpnext(data) {
+  async updateProductInStrapi(data) {
     const hasType = await this.getType("products")
       .then((res) => {
         // console.log(res.data)
@@ -341,7 +365,7 @@ export default class UpdateErpnextService extends BaseService {
       })
 
       if (product) {
-        await this.updateEntryInErpnext("products", product.id, product)
+        await this.updateEntryInStrapi("products", product.id, product)
       }
 
       return product
@@ -350,7 +374,7 @@ export default class UpdateErpnextService extends BaseService {
     }
   }
 
-  async updateProductVariantInErpnext(data) {
+  async updateProductVariantInStrapi(data) {
     const hasType = await this.getType("product-variants")
       .then((res) => {
         // console.log(res.data)
@@ -395,11 +419,11 @@ export default class UpdateErpnextService extends BaseService {
       const variant = await this.productVariantService_.retrieve(data.id, {
         relations: ["prices", "options"],
       })
-      console.log(variant, "variants")
+      console.log(variant)
 
       if (variant) {
         // Update entry in Strapi
-        const response = await this.updateEntryInErpnext(
+        const response = await this.updateEntryInStrapi(
           "product-variants",
           variant.id,
           variant
@@ -414,28 +438,26 @@ export default class UpdateErpnextService extends BaseService {
     }
   }
 
-  async deleteProductInErpnext(data) {
+  async deleteProductInStrapi(data) {
     const hasType = await this.getType("products")
-    console
-      .log(data, "delete product")
       .then(() => true)
       .catch((err) => {
-        console.log(err)
+        // console.log(err)
         return false
       })
     if (!hasType) {
       return Promise.resolve()
     }
 
-    const ignore = await this.shouldIgnore(data.id, "strapi")
+    const ignore = await this.shouldIgnore_(data.id, "strapi")
     if (ignore) {
       return Promise.resolve()
     }
 
-    return await this.deleteEntryInErpnext("products", data.id)
+    return await this.deleteEntryInStrapi("products", data.id)
   }
 
-  async deleteProductVariantInErpnext(data) {
+  async deleteProductVariantInStrapi(data) {
     const hasType = await this.getType("product-variants")
       .then(() => true)
       .catch((err) => {
@@ -451,16 +473,19 @@ export default class UpdateErpnextService extends BaseService {
       return Promise.resolve()
     }
 
-    return await this.deleteEntryInErpnext("product-variants", data.id)
+    return await this.deleteEntryInStrapi("product-variants", data.id)
   }
 
   // Blocker - Delete Region API
-  async deleteRegionInErpnext(data) {}
+  async deleteRegionInStrapi(data) {}
 
   async getType(type) {
+    console.log("connection of erpnext")
     if (!this.strapiAuthToken) {
-      await this.loginToErpnext()
+      await this.loginToStrapi()
     }
+    console.log("type", type)
+    console.log("connected of erpnext")
     const config = {
       url: `${this.strapi_URL_STRING}/api/${type}`,
       method: "get",
@@ -495,34 +520,36 @@ export default class UpdateErpnextService extends BaseService {
       })
   }
 
-  async loginToErpnext() {
-    const config = {
-      method: "post",
-      url: `${this.strapi_URL_STRING}/api/auth/local`,
-      data: {
-        identifier: this.options_.strapi_medusa_user,
-        password: this.options_.strapi_medusa_password,
-      },
-    }
-    return axios(config)
+  async loginToStrapi() {
+    axios
+      .post(
+        "http://site1.localhost:8000/api/method/erpnext.login.loginToErpNext",
+        {
+          identifier: "administrator",
+          password: "admin",
+        },
+        {
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+        }
+      )
       .then((res) => {
-        if (res.data.jwt) {
-          this.strapiAuthToken = res.data.jwt
-          console.log("\n Successfully logged in to Strapi \n")
-          return true
-        }
-        return false
+        console.log("res", res.data)
       })
-      .catch((error) => {
-        if (error) {
-          throw new Error("\nError while trying to login to strapi\n" + error)
-        }
+      .catch((err) => {
+        console.log("err", err)
       })
+
+    console.log("Logging into Erpnext")
+    console.log("Logged in")
   }
 
-  async createEntryInErpnext(type, id, data) {
+  async createEntryInStrapi(type, id, data) {
+    console.log("create")
     if (!this.strapiAuthToken) {
-      await this.loginToErpnext()
+      await this.loginToStrapi()
     }
     const config = {
       method: "post",
@@ -549,10 +576,12 @@ export default class UpdateErpnextService extends BaseService {
       })
   }
 
-  async updateEntryInErpnext(type, id, data) {
+  async updateEntryInStrapi(type, id, data) {
+    console.log("update")
     if (!this.strapiAuthToken) {
-      await this.loginToErpnext()
+      await this.loginToStrapi()
     }
+    console.log("after connection")
     const config = {
       method: "put",
       url: `${this.strapi_URL_STRING}/api/${type}/${id}`,
@@ -561,6 +590,7 @@ export default class UpdateErpnextService extends BaseService {
       },
       data,
     }
+    console.log("config", config)
     return axios(config)
       .then((res) => {
         if (res.data.result) {
@@ -576,9 +606,9 @@ export default class UpdateErpnextService extends BaseService {
       })
   }
 
-  async deleteEntryInErpnext(type, id) {
+  async deleteEntryInStrapi(type, id) {
     if (!this.strapiAuthToken) {
-      await this.loginToErpnext()
+      await this.loginToStrapi()
     }
     const config = {
       method: "delete",
@@ -601,9 +631,9 @@ export default class UpdateErpnextService extends BaseService {
       })
   }
 
-  async doesEntryExistInErpnext(type, id) {
+  async doesEntryExistInStrapi(type, id) {
     if (!this.strapiAuthToken) {
-      await this.loginToErpnext()
+      await this.loginToStrapi()
     }
     const config = {
       method: "get",
